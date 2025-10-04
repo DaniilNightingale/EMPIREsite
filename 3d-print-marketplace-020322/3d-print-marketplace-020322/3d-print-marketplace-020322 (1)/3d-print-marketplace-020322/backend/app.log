@@ -1,0 +1,7 @@
+2025-10-01T20:26:36.957Z info: Сервер запущен на порту 59449
+2025-10-01T20:26:36.959Z info: 数据库连接成功
+2025-10-01T20:26:36.961Z error: 未捕获异常: SQLITE_ERROR: no such table: users
+2025-10-01T20:26:36.961Z error: 未捕获异常: SQLITE_ERROR: no such table: settings
+2025-10-01T20:26:36.961Z error: 未捕获异常: SQLITE_ERROR: no such table: products
+2025-10-01T20:26:36.962Z error: 未捕获异常: SQLITE_ERROR: no such table: products
+2025-10-01T20:26:36.962Z error: 未捕获异常: SQLITE_ERROR: no such table: products

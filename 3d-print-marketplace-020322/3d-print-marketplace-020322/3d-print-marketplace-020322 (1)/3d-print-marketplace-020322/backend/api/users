@@ -1,0 +1,501 @@
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const path = require('path');
+const fs = require('fs');
+const { v4: uuidv4 } = require('uuid');
+const winston = require('winston');
+const bcrypt = require('bcrypt');
+
+const app = express();
+
+// 全局异常捕获
+process.on('uncaughtException', (err) => {
+  logger.error('未捕获异常:', err);
+});
+
+// 创建日志记录器
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.printf(({ timestamp, level, message }) => {
+      return `${timestamp} ${level}: ${message}`;
+    })
+  ),
+  transports: [
+    new winston.transports.Console()
+  ]
+});
+
+// 允许跨域访问
+app.use(helmet({
+  contentSecurityPolicy: false,
+  frameguard: false
+}));
+app.use(cors());
+app.use(express.json({ limit: '50mb' }));
+
+const publicDir = path.resolve(__dirname, '../frontend/public');
+const distDir = path.resolve(__dirname, '../frontend/dist');
+const publicPath = fs.existsSync(publicDir) ? publicDir : distDir;
+app.use(express.static(publicPath));
+
+// 模拟内存数据库
+const users = {};
+const messages = {};
+const products = {};
+const orders = {};
+const customRequests = {};
+const favorites = {};
+const portfolio = {};
+const settings = {
+  payment_info: '请联系管理员获取支付信息',
+  price_coefficient: 5.25,
+  discount_rules: [],
+  show_discount_on_products: false
+};
+
+// 初始化数据库
+const initDatabase = () => {
+  // 初始化管理员用户
+  if (!users[1]) {
+    users[1] = {
+      id: 1,
+      username: 'admin',
+      password: bcrypt.hashSync('admin123', 10),
+      role: 'admin',
+      registration_date: new Date().toISOString(),
+      city: '',
+      avatar: null
+    };
+  }
+  
+  // 添加一些测试用户
+  if (!users[2]) {
+    users[2] = {
+      id: 2,
+      username: 'testbuyer',
+      password: bcrypt.hashSync('123456', 10),
+      role: 'buyer',
+      registration_date: new Date().toISOString(),
+      city: 'Moscow',
+      avatar: null
+    };
+  }
+  
+  if (!users[3]) {
+    users[3] = {
+      id: 3,
+      username: 'testexecutor',
+      password: bcrypt.hashSync('123456', 10),
+      role: 'executor',
+      registration_date: new Date().toISOString(),
+      city: 'St. Petersburg',
+      avatar: null
+    };
+  }
+  
+  logger.info('数据库初始化完成');
+};
+
+// 模拟认证中间件
+const authenticateToken = (req, res, next) => {
+  // 在实际应用中，这里会验证JWT token
+  // 现在直接设置管理员用户
+  req.user = { id: 1, role: 'admin' };
+  next();
+};
+
+// 生成下一个用户ID
+const getNextUserId = () => {
+  const userIds = Object.keys(users).map(id => parseInt(id));
+  return userIds.length > 0 ? Math.max(...userIds) + 1 : 1;
+};
+
+initDatabase();
+
+// 用户登录接口
+app.post('/api/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Требуются имя пользователя и пароль' });
+    }
+    
+    // 查找用户
+    const user = Object.values(users).find(u => u.username === username);
+    
+    if (!user) {
+      return res.status(401).json({ error: 'Неверное имя пользователя или пароль' });
+    }
+    
+    // 验证密码
+    const isValidPassword = bcrypt.compareSync(password, user.password);
+    
+    if (!isValidPassword) {
+      return res.status(401).json({ error: 'Неверное имя пользователя или пароль' });
+    }
+    
+    // 返回用户信息（不包含密码）
+    const { password: _, ...userInfo } = user;
+    
+    res.json({
+      message: 'Вход выполнен успешно',
+      user: userInfo
+    });
+    
+  } catch (error) {
+    logger.error('Ошибка входа:', error);
+    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+  }
+});
+
+// 用户注册接口
+app.post('/api/register', async (req, res) => {
+  try {
+    const { username, password, role = 'buyer' } = req.body;
+    
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Требуются имя пользователя и пароль' });
+    }
+    
+    if (username.length < 3) {
+      return res.status(400).json({ error: 'Имя пользователя должно содержать минимум 3 символа' });
+    }
+    
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Пароль должен содержать минимум 6 символов' });
+    }
+    
+    // Проверяем, существует ли пользователь
+    const existingUser = Object.values(users).find(u => u.username === username);
+    if (existingUser) {
+      return res.status(409).json({ error: 'Пользователь с таким именем уже существует' });
+    }
+    
+    // Создаем нового пользователя
+    const userId = getNextUserId();
+    const newUser = {
+      id: userId,
+      username: username.trim(),
+      password: bcrypt.hashSync(password, 10),
+      role: ['buyer', 'executor', 'admin'].includes(role) ? role : 'buyer',
+      registration_date: new Date().toISOString(),
+      city: '',
+      avatar: null
+    };
+    
+    users[userId] = newUser;
+    
+    logger.info(`Зарегистрирован новый пользователь: ${username} (ID: ${userId})`);
+    
+    res.status(201).json({
+      message: 'Пользователь успешно зарегистрирован',
+      user: { id: userId, username: newUser.username, role: newUser.role }
+    });
+    
+  } catch (error) {
+    logger.error('Ошибка регистрации:', error);
+    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+  }
+});
+
+// 获取用户列表
+app.get('/api/users', authenticateToken, async (req, res) => {
+  try {
+    const { search, role_filter } = req.query;
+    
+    let userList = Object.values(users);
+    
+    // Фильтрация по поисковому запросу
+    if (search && search.trim()) {
+      const searchTerm = search.trim().toLowerCase();
+      userList = userList.filter(user => {
+        const matchesId = user.id.toString() === searchTerm;
+        const matchesUsername = user.username && user.username.toLowerCase().includes(searchTerm);
+        return matchesId || matchesUsername;
+      });
+    }
+    
+    // Фильтрация по роли
+    if (role_filter && role_filter.trim()) {
+      userList = userList.filter(user => user.role === role_filter.trim());
+    }
+    
+    // Удаляем пароли из ответа
+    const safeUserList = userList.map(user => {
+      const { password, ...safeUser } = user;
+      return safeUser;
+    });
+    
+    logger.info(`Загружен список пользователей: ${safeUserList.length} пользователей`);
+    res.json(safeUserList);
+    
+  } catch (error) {
+    logger.error('Ошибка получения списка пользователей:', error);
+    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+  }
+});
+
+// Получить конкретного пользователя
+app.get('/api/users/:id', authenticateToken, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: 'Неверный ID пользователя' });
+    }
+    
+    const user = users[userId];
+    
+    if (!user) {
+      return res.status(404).json({ error: 'Пользователь не найден' });
+    }
+    
+    // Удаляем пароль из ответа
+    const { password, ...safeUser } = user;
+    
+    res.json(safeUser);
+    
+  } catch (error) {
+    logger.error('Ошибка получения пользователя:', error);
+    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+  }
+});
+
+// Обновить пользователя
+app.put('/api/users/:id', authenticateToken, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: 'Неверный ID пользователя' });
+    }
+    
+    const user = users[userId];
+    
+    if (!user) {
+      return res.status(404).json({ error: 'Пользователь не найден' });
+    }
+    
+    // Проверяем права доступа
+    if (req.user.id !== 1 && req.user.id !== userId) {
+      return res.status(403).json({ error: 'Недостаточно прав' });
+    }
+    
+    const { username, password, role, city, avatar } = req.body;
+    
+    // Обновляем поля
+    if (username && username.trim()) {
+      // Проверяем уникальность имени пользователя
+      const existingUser = Object.values(users).find(u => u.username === username.trim() && u.id !== userId);
+      if (existingUser) {
+        return res.status(409).json({ error: 'Пользователь с таким именем уже существует' });
+      }
+      user.username = username.trim();
+    }
+    
+    if (password && password.trim()) {
+      if (password.length < 6) {
+        return res.status(400).json({ error: 'Пароль должен содержать минимум 6 символов' });
+      }
+      user.password = bcrypt.hashSync(password, 10);
+    }
+    
+    if (role && ['buyer', 'executor', 'admin'].includes(role)) {
+      // Только админ может менять роли, и админ не может изменить свою роль
+      if (req.user.id === 1 && userId !== 1) {
+        user.role = role;
+      }
+    }
+    
+    if (city !== undefined) {
+      user.city = city || '';
+    }
+    
+    if (avatar !== undefined) {
+      user.avatar = avatar;
+    }
+    
+    logger.info(`Обновлен пользователь: ${user.username} (ID: ${userId})`);
+    
+    // Возвращаем обновленного пользователя без пароля
+    const { password: _, ...safeUser } = user;
+    res.json({ message: 'Пользователь успешно обновлен', user: safeUser });
+    
+  } catch (error) {
+    logger.error('Ошибка обновления пользователя:', error);
+    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+  }
+});
+
+// Удалить пользователя
+app.delete('/api/users/:id', authenticateToken, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: 'Неверный ID пользователя' });
+    }
+    
+    // Проверяем права доступа - только админ может удалять пользователей
+    if (req.user.id !== 1) {
+      return res.status(403).json({ error: 'Недостаточно прав' });
+    }
+    
+    // Нельзя удалить админа
+    if (userId === 1) {
+      return res.status(403).json({ error: 'Невозможно удалить администратора' });
+    }
+    
+    const user = users[userId];
+    
+    if (!user) {
+      return res.status(404).json({ error: 'Пользователь не найден' });
+    }
+    
+    // Удаляем пользователя
+    delete users[userId];
+    
+    // Удаляем связанные данные
+    delete favorites[userId];
+    delete portfolio[userId];
+    
+    // Удаляем сообщения пользователя
+    Object.keys(messages).forEach(messageId => {
+      if (messages[messageId].from_user_id === userId || messages[messageId].to_user_id === userId) {
+        delete messages[messageId];
+      }
+    });
+    
+    // Удаляем заказы пользователя
+    Object.keys(orders).forEach(orderId => {
+      if (orders[orderId].user_id === userId) {
+        delete orders[orderId];
+      }
+    });
+    
+    // Удаляем заявки пользователя
+    Object.keys(customRequests).forEach(requestId => {
+      if (customRequests[requestId].user_id === userId) {
+        delete customRequests[requestId];
+      }
+    });
+    
+    logger.info(`Удален пользователь: ${user.username} (ID: ${userId})`);
+    
+    res.json({ message: 'Пользователь успешно удален' });
+    
+  } catch (error) {
+    logger.error('Ошибка удаления пользователя:', error);
+    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+  }
+});
+
+// Админский API для получения пользователей (fallback)
+app.get('/api/admin/users', authenticateToken, async (req, res) => {
+  try {
+    // Проверяем права админа
+    if (req.user.id !== 1) {
+      return res.status(403).json({ error: 'Недостаточно прав' });
+    }
+    
+    const { search, role_filter } = req.query;
+    
+    let userList = Object.values(users);
+    
+    // Фильтрация по поисковому запросу
+    if (search && search.trim()) {
+      const searchTerm = search.trim().toLowerCase();
+      userList = userList.filter(user => {
+        const matchesId = user.id.toString() === searchTerm;
+        const matchesUsername = user.username && user.username.toLowerCase().includes(searchTerm);
+        return matchesId || matchesUsername;
+      });
+    }
+    
+    // Фильтрация по роли
+    if (role_filter && role_filter.trim()) {
+      userList = userList.filter(user => user.role === role_filter.trim());
+    }
+    
+    // Удаляем пароли из ответа
+    const safeUserList = userList.map(user => {
+      const { password, ...safeUser } = user;
+      return safeUser;
+    });
+    
+    logger.info(`Админ загрузил список пользователей: ${safeUserList.length} пользователей`);
+    res.json(safeUserList);
+    
+  } catch (error) {
+    logger.error('Ошибка получения списка пользователей (админ):', error);
+    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+  }
+});
+
+// Добавляем остальные существующие API из server.js
+// Получение товаров
+app.get('/api/products', async (req, res) => {
+  try {
+    const productList = Object.values(products);
+    res.json(productList);
+  } catch (error) {
+    logger.error('Ошибка получения товаров:', error);
+    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+  }
+});
+
+// Добавить получение чатов
+app.get('/api/chat/messages/:userId', authenticateToken, async (req, res) => {
+  try {
+    const clientId = parseInt(req.params.userId);
+    
+    if (!clientId) {
+      return res.status(400).json({ error: 'Пользователь ID не может быть пустым' });
+    }
+    
+    // В реальном приложении здесь был бы запрос к базе данных
+    const chatMessages = [];
+    
+    // Находим сообщения между пользователями
+    Object.values(messages).forEach(msg => {
+      if ((msg.sender_id === req.user.id && msg.receiver_id === clientId) ||
+          (msg.sender_id === clientId && msg.receiver_id === req.user.id)) {
+        chatMessages.push(msg);
+      }
+    });
+    
+    // Сортируем по времени создания
+    chatMessages.sort((a, b) => new Date(a.created_date) - new Date(b.created_date));
+    
+    logger.info(`Получены сообщения для пользователя ${clientId}: ${chatMessages.length} сообщений`);
+    res.json(chatMessages);
+    
+  } catch (err) {
+    logger.error('Ошибка получения сообщений чата:', err);
+    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+  }
+});
+
+// Обработка фронтенд роутов
+app.get('*', (req, res) => {
+  const filePath = path.join(publicPath, req.path);
+  if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+    res.sendFile(filePath);
+  } else {
+    res.sendFile(path.join(publicPath, 'index.html'));
+  }
+});
+
+// Обработка 404 ошибок
+app.use((req, res) => {
+  res.status(404).json({ error: 'Интерфейс не существует' });
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  logger.info(`Сервер успешно запущен на порту: ${PORT}`);
+});

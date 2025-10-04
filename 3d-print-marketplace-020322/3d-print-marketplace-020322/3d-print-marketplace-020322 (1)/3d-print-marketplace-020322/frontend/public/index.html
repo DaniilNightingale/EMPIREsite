@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Print Marketplace - 由响指AI生成</title>
+    <meta name="description" content="Многофункциональная платформа для торговли 3D-печатными изделиями">
+    <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖨</text></svg>">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background-color: #ffffff;
+            color: #000000;
+            line-height: 1.6;
+        }
+        
+        #root {
+            min-height: 100vh;
+        }
+        
+        .loading-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #ffffff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid #e0e0e0;
+            border-top: 3px solid #1a365d;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            margin-top: 20px;
+            color: #666666;
+            font-size: 16px;
+        }
+        
+        .error-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            text-align: center;
+            background: #ffffff;
+        }
+        
+        .error-title {
+            font-size: 24px;
+            color: #e53e3e;
+            margin-bottom: 10px;
+        }
+        
+        .error-message {
+            color: #666666;
+            margin-bottom: 20px;
+            max-width: 600px;
+            line-height: 1.5;
+        }
+        
+        .error-button {
+            padding: 10px 20px;
+            background: #1a365d;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin: 5px;
+        }
+        
+        .error-button:hover {
+            background: #2c5282;
+        }
+    </style>
+  <script type="module" crossorigin src="/assets/index-Be_8Hgy8.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-BLfee6BO.css">
+</head>
+<body>
+    <div id="root">
+        <div class="loading-container" id="initial-loading">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Загрузка 3D Print Marketplace...</div>
+        </div>
+    </div>
+
+    <script>
+        // Глобальная обработка ошибок
+        window.addEventListener('error', function(event) {
+            console.error('Ошибка загрузки:', event.error);
+            showError('Ошибка загрузки приложения', 'Проверьте подключение к интернету и перезагрузите страницу');
+        });
+        
+        window.addEventListener('unhandledrejection', function(event) {
+            console.error('Необработанная ошибка:', event.reason);
+            showError('Ошибка выполнения', 'Произошла неожиданная ошибка');
+        });
+
+        function showError(title, message) {
+            const root = document.getElementById('root');
+            root.innerHTML = `
+                <div class="error-container">
+                    <div class="error-title">${title}</div>
+                    <div class="error-message">${message}</div>
+                    <button class="error-button" onclick="window.location.reload()">
+                        Перезагрузить страницу
+                    </button>
+                </div>
+            `;
+        }
+
+        // Загрузка стилей
+        function loadStyles() {
+            const styles = [
+                {
+                    href: 'https://hpi-hub.tos-cn-beijing.volces.com/haisnap/cdn/tailwind.min.css',
+                    name: 'Tailwind CSS'
+                },
+                {
+                    href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
+                    name: 'Inter Font'
+                }
+            ];
+
+            styles.forEach(style => {
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = style.href;
+                link.onerror = () => console.warn(`Не удалось загрузить ${style.name}`);
+                document.head.appendChild(link);
+            });
+        }
+
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', function() {
+            loadStyles();
+            
+            // Скрываем загрузчик через 2 секунды если React не загрузился
+            setTimeout(() => {
+                const loader = document.getElementById('initial-loading');
+                if (loader && loader.style.display !== 'none') {
+                    showError(
+                        'Не удалось загрузить основной модуль приложения',
+                        'Проверьте наличие файла src/index.jsx и правильность его содержимого'
+                    );
+                }
+            }, 5000);
+        });
+
+        // Скрыть загрузчик при успешной загрузке React
+        window.hideLoader = function() {
+            const loader = document.getElementById('initial-loading');
+            if (loader) {
+                loader.style.display = 'none';
+            }
+        };
+    </script>
+
+    <!-- React приложение -->
+</body>
+</html>
